@@ -1,0 +1,132 @@
+substitutions:
+  device_name: DS02S-Dimmer-Switch
+  device_friendly_name: DS02S Dimmer Switch
+  device_id: ds02s_dimmer_switch
+  device_description: "Treatlife Single Pole Smart Dimmer Switch (DS02S)"
+  icon: "mdi:light-switch"
+  update_interval_wifi: "60s"
+
+# Esphome core information
+esphome:
+  name: ${device_name}
+  friendly_name: ${device_friendly_name}
+  comment: ${device_description}
+  on_boot:
+    then:
+      - select.set_index: 
+          id: "load_type"
+          index: 0
+
+  platformio_options: 
+    lib_ignore: RPAsyncTCP
+
+# The board type for this device
+bk72xx:
+  board: generic-bk7231t-qfn32-tuya
+
+# Automatically logs all log messages, By default, all logs with a severity DEBUG or higher will be shown
+# Increasing the log level severity (to e.g INFO or WARNING) can help with the performance of the application and memory size.
+logger:
+  level: !secret logging_level
+  baud_rate: 0
+
+# Creata a simple web server on the node that can be accessed through any browser and a simple REST API
+web_server:
+
+# Make the node announce itself on the local network using the multicast DNS (MDNS)
+# mdns:
+
+# ESPHome native API is used to communicate with clients directly, required for Home Assistant functionality
+api:
+  reboot_timeout: 0s
+  batch_delay: 50ms
+  encryption:
+    key: !secret ohab_key
+
+# Permit OTA (Over The Air) updates
+ota:
+  - platform: esphome
+    password: !secret esphome_ota
+
+# Setup the wifi connection, and configure a possible local access point
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: LIGHT
+  fast_connect: True
+  domain: !secret domain_name
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${device_name}
+    password: !secret ap_password
+
+# After 1 minute of unsuccessful WiFi connection attempts, the ESP will start a WiFi hotspot (with the credentials from ap configuration above)
+captive_portal:
+
+# Set the time server
+time:
+  - platform: sntp
+    servers: "0.us.pool.ntp.org"
+    id: sntp_time
+
+# Loads TUYA library to communicate with MCU and sends the time to the MCU
+tuya:
+  time_id: sntp_time
+
+# Sets the communication details to MCU
+uart:
+  rx_pin: GPIO10
+  tx_pin: GPIO11
+  baud_rate: 115200
+
+# Main light entity
+light:
+  - platform: "tuya"
+    name: ${device_friendly_name}
+    id: ${device_id}_output
+    icon: ${icon}
+    dimmer_datapoint: 2
+    switch_datapoint: 1
+    min_value: 10
+    max_value: 1000
+    restore_mode: RESTORE_AND_OFF
+
+# This allows you to control the Minimum Brightness, Load Type and how the indicator led operates when the load is on or off.
+number:
+  - platform: "tuya"
+    id: min_brightness
+    name: ${device_friendly_name} Min Brightness
+    number_datapoint: 3
+    min_value: 0
+    max_value: 1000
+    step: 10
+    entity_category: config
+
+select:
+  - platform: "tuya"
+    id: "load_type"
+    name: ${device_friendly_name} Load Type
+    enum_datapoint: 4
+    options:
+      0: "LED"
+      1: "Incandescent"
+      2: "Halogen"
+    entity_category: config
+
+  - platform: "tuya"
+    id: indicator_led
+    name: ${device_friendly_name} Indicator Mode
+    enum_datapoint: 104
+    options:
+      0: "Opposite"
+      1: "Follow"
+
+# Datapoint notes
+#1 - switch
+#2 - dimmer
+#3 - minimum brightness 
+#4 - dimming mode = LED, incandescent, halogen
+#101 - ??? led_bright low/ wake_up value=AAAA ??? found on another configuration, but haven't been able to investigate what this datapoint is when device boots with debug enabled the output shows Datapoint 101: raw (value: 00.00.00)
+#102 - ??? count_down value=0 ??? found on another configuration, but haven't been able to investigate what this datapoint is when device boots with debug enabled the output shows Datapoint 102: int value (value: 0)
+#104 - indicator led = Opposite, Follow
+#105 - ??? random time ??? found on another configuration, but haven't been able to investigate what this datapoint is when device boots with debug enabled the output shows Datapoint 105: raw (value: 06.00.00)
